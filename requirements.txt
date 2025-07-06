@@ -1,0 +1,4 @@
+flask
+faster-whisper
+python-dotenv
+google-generativeai
