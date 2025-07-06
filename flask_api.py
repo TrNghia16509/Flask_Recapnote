@@ -14,9 +14,9 @@ def process_audio_backend(filepath):
     model = WhisperModel("small", compute_type="int8")
     segments, info = model.transcribe(filepath, language="vi")
     full_text = "\n".join([seg.text for seg in segments])
-    subject = genai.GenerativeModel("gemini-1.5-flash").generate_content(
+    subject = genai.GenerativeModel("gemini-3.5-flash").generate_content(
         "Chủ đề chính là gì?\n" + full_text).text.strip()
-    summary = genai.GenerativeModel("gemini-1.5-flash").generate_content(
+    summary = genai.GenerativeModel("gemini-3.5-flash").generate_content(
         "Tóm tắt:\n" + full_text).text.strip()
     return subject, summary, full_text
 
