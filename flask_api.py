@@ -10,6 +10,8 @@ app = Flask(__name__)
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+@app.route("https://flask-recapnote.onrender.com/upload_audio", methods=["POST"])
+
 def process_audio_backend(filepath):
     model = WhisperModel("small", compute_type="int8")
     segments, info = model.transcribe(filepath, language="vi")
@@ -20,7 +22,6 @@ def process_audio_backend(filepath):
         "Tóm tắt:\n" + full_text).text.strip()
     return subject, summary, full_text
 
-@app.route("https://flask-recapnote.onrender.com/upload_audio", methods=["POST"])
 def upload_audio():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
