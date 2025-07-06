@@ -20,7 +20,7 @@ def process_audio_backend(filepath):
         "Tóm tắt:\n" + full_text).text.strip()
     return subject, summary, full_text
 
-@app.route("/upload_audio", methods=["POST"])
+@app.route("https://flask-recapnote.onrender.com/upload_audio", methods=["POST"])
 def upload_audio():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
