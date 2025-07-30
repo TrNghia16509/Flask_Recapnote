@@ -10,8 +10,11 @@ app = Flask(__name__)
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-@app.route("/upload_audio", methods=["POST"])
+@flask_app.route("/")
+def home():
+    return "✅ Flask backend is running."
 
+@app.route("/upload_audio", methods=["POST"])
 def process_audio_backend(filepath):
     model = WhisperModel("small", compute_type="int8")
     segments, info = model.transcribe(filepath, language="vi")
