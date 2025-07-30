@@ -37,4 +37,4 @@ def upload_audio():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))  # Railway sẽ set PORT
-    flask_app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port)
