@@ -10,7 +10,7 @@ app = Flask(__name__)
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-@app.route("https://flask-recapnote.up.railway.app/upload_audio", methods=["POST"])
+@app.route("/upload_audio", methods=["POST"])
 
 def process_audio_backend(filepath):
     model = WhisperModel("small", compute_type="int8")
