@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: flask-recapnote
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python flask_api.py"
+    envVars:
+      - key: PORT
+        value: 10000
