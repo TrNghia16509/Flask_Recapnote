@@ -5,6 +5,7 @@ import os
 import tempfile
 from dotenv import load_dotenv
 import google.generativeai as genai
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
@@ -42,3 +43,4 @@ def upload_audio():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))  # Railway sẽ set PORT
     app.run(host="0.0.0.0", port=port)
+
