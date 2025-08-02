@@ -39,5 +39,5 @@ def upload_audio():
         })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Railway sẽ set PORT
+    port = int(os.environ.get("PORT", 10000))  # Railway sẽ set PORT
     app.run(host="0.0.0.0", port=port)
