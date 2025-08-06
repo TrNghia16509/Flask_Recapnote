@@ -1,4 +1,3 @@
-# flask_api.py
 from flask import Flask, request, jsonify
 from faster_whisper import WhisperModel
 import os
@@ -17,23 +16,26 @@ def home():
     return "✅ Flask backend is running."
 
 @app.route("/upload_audio", methods=["POST"])
-def process_audio_backend(filepath):
-    model = WhisperModel("small", compute_type="int8")
-    segments, info = model.transcribe(filepath, language="vi")
-    full_text = "\n".join([seg.text for seg in segments])
-    subject = genai.GenerativeModel("gemini-3.5-flash").generate_content(
-        "Chủ đề chính là gì?\n" + full_text).text.strip()
-    summary = genai.GenerativeModel("gemini-3.5-flash").generate_content(
-        "Tóm tắt:\n" + full_text).text.strip()
-    return subject, summary, full_text
-
 def upload_audio():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
+
     file = request.files["file"]
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         file.save(tmp.name)
-        subject, summary, full_text = process_audio_backend(tmp.name)
+
+        # Process bằng Whisper
+        model = WhisperModel("small", compute_type="int8")
+        segments, info = model.transcribe(tmp.name, language="vi")
+        full_text = "\n".join([seg.text for seg in segments])
+
+        # Gemini AI xử lý chủ đề và tóm tắt
+        subject = genai.GenerativeModel("gemini-3.5-flash").generate_content(
+            "Chủ đề chính là gì?\n" + full_text).text.strip()
+
+        summary = genai.GenerativeModel("gemini-3.5-flash").generate_content(
+            "Tóm tắt:\n" + full_text).text.strip()
+
         return jsonify({
             "subject": subject,
             "summary": summary,
@@ -41,6 +43,5 @@ def upload_audio():
         })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Railway sẽ set PORT
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
