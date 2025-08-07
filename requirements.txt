@@ -3,3 +3,4 @@ faster-whisper
 python-dotenv
 google-generativeai
 flask-cors
+boto3
