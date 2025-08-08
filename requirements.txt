@@ -1,5 +1,4 @@
 flask
-faster-whisper
 python-dotenv
 google-generativeai
 flask-cors
@@ -19,3 +18,4 @@ soundfile
 boto3
 bcrypt
 b2sdk
+
