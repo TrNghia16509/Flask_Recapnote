@@ -11,10 +11,6 @@ app = Flask(__name__)
 CORS(app)
 load_dotenv()
 
-@app.route("/", methods=["GET"])
-def home():
-    return {"status": "✅ Flask backend is running"}, 200
-
 # Google Gemini
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -133,6 +129,7 @@ def process_file():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
