@@ -61,10 +61,21 @@ def transcribe_with_assemblyai(file_path):
     audio_url = upload_res.json()["upload_url"]
 
     # Yêu cầu transcribe
-    json_data = {"audio_url": audio_url, "language_code": "vi"}
-    trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers=headers, json=json_data)
+    language_code = request.form.get("language_code", "auto")
+
+    json_data = {
+        "audio_url": audio_url,
+        "language_code": None if language_code == "auto" else language_code
+    }
+
+    trans_res = requests.post(
+        ASSEMBLYAI_TRANSCRIBE_URL,
+        headers=headers,
+        json=json_data
+    )
     trans_res.raise_for_status()
     transcript_id = trans_res.json()["id"]
+
 
     # Chờ xử lý xong
     while True:
@@ -137,6 +148,7 @@ def process_file():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
