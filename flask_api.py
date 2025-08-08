@@ -7,6 +7,7 @@ from flask_cors import CORS
 import fitz, docx, json
 from b2sdk.v2 import InMemoryAccountInfo, B2Api
 import requests  # Thêm để gọi AssemblyAI API
+import pdfplumber
 
 # ============= Config ============
 app = Flask(__name__)
@@ -33,8 +34,8 @@ bucket = b2_api.get_bucket_by_name(os.getenv("B2_BUCKET_NAME"))
 
 # === Helpers ===
 def extract_text_from_pdf(file_path):
-    doc = fitz.open(file_path)
-    return "\n".join([page.get_text() for page in doc])
+    with pdfplumber.open(file_path) as pdf:
+        return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
 
 def extract_text_from_docx(file_path):
     doc = docx.Document(file_path)
@@ -132,3 +133,4 @@ def process_file():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
