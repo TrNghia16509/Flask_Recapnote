@@ -1,24 +1,25 @@
 from flask import Flask, request, jsonify
-from faster_whisper import WhisperModel
 import os
 import tempfile
 from dotenv import load_dotenv
 import google.generativeai as genai
 from flask_cors import CORS
-from faster_whisper import WhisperModel
-import fitz, docx, tempfile, os
+import fitz, docx, json
 from b2sdk.v2 import InMemoryAccountInfo, B2Api
+import requests  # Thêm để gọi AssemblyAI API
 
 # ============= Config ============
 app = Flask(__name__)
 CORS(app)
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-whisper_model = WhisperModel("small", compute_type="int8")  # Load 1 lần
 
-@app.route("/")
-def home():
-    return "✅ Flask backend is running."
+# Google Gemini API
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# AssemblyAI API Key
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
+ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
+ASSEMBLYAI_TRANSCRIBE_URL = "https://api.assemblyai.com/v2/transcript"
 
 # === Backblaze setup ===
 info = InMemoryAccountInfo()
@@ -44,6 +45,32 @@ def upload_to_b2(local_path, b2_filename, content_type):
         bucket.upload_bytes(f.read(), b2_filename, content_type=content_type)
     return f"{os.getenv('B2_PUBLIC_URL')}/{b2_filename}"
 
+def transcribe_with_assemblyai(file_path):
+    """Upload file lên AssemblyAI và trả về transcript text"""
+    headers = {"authorization": ASSEMBLYAI_API_KEY}
+
+    # Upload file audio
+    with open(file_path, "rb") as f:
+        upload_res = requests.post(ASSEMBLYAI_UPLOAD_URL, headers=headers, data=f)
+    upload_res.raise_for_status()
+    audio_url = upload_res.json()["upload_url"]
+
+    # Yêu cầu transcribe
+    json_data = {"audio_url": audio_url, "language_code": "vi"}
+    trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers=headers, json=json_data)
+    trans_res.raise_for_status()
+    transcript_id = trans_res.json()["id"]
+
+    # Chờ xử lý xong
+    while True:
+        status_res = requests.get(f"{ASSEMBLYAI_TRANSCRIBE_URL}/{transcript_id}", headers=headers)
+        status_res.raise_for_status()
+        status_data = status_res.json()
+        if status_data["status"] == "completed":
+            return status_data["text"]
+        elif status_data["status"] == "error":
+            raise Exception(f"Lỗi AssemblyAI: {status_data['error']}")
+
 # === API ===
 @app.route("/process_file", methods=["POST"])
 def process_file():
@@ -57,8 +84,7 @@ def process_file():
         ext = file.filename.lower()
 
         if ext.endswith((".mp3", ".wav")):
-            segments, info_w = whisper_model.transcribe(tmp.name, language="vi")
-            text = "\n".join([seg.text for seg in segments])
+            text = transcribe_with_assemblyai(tmp.name)
             content_type = "audio/wav"
         elif ext.endswith(".pdf"):
             text = extract_text_from_pdf(tmp.name)
