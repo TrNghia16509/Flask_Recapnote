@@ -4,7 +4,7 @@ import tempfile
 from dotenv import load_dotenv
 import google.generativeai as genai
 from flask_cors import CORS
-import fitz, docx, json
+import docx, json
 from b2sdk.v2 import InMemoryAccountInfo, B2Api
 import requests  # Thêm để gọi AssemblyAI API
 import pdfplumber
@@ -133,4 +133,5 @@ def process_file():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
