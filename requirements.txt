@@ -6,3 +6,16 @@ flask-cors
 boto3
 bcrypt
 b2sdk
+pydub
+PyMuPDF
+python-docx
+numpy
+email-validator
+gunicorn
+requests
+authlib
+streamlit-webrtc
+soundfile
+boto3
+bcrypt
+b2sdk
