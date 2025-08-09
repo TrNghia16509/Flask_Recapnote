@@ -12,12 +12,10 @@ CORS(app)
 load_dotenv()
 
 # Kiểm tra biến môi trường bắt buộc
-required_env = ["GOOGLE_API_KEY", "ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME", "B2_PUBLIC_URL"]
+required_env = ["GOOGLE_API_KEY", "ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"]
 for env_var in required_env:
     if not os.getenv(env_var):
         raise RuntimeError(f"❌ Missing environment variable: {env_var}")
-
-B2_PUBLIC_URL = os.getenv("B2_PUBLIC_URL").rstrip("/")
 
 # Google Gemini
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -45,7 +43,16 @@ def extract_text_from_docx(file_path):
 def upload_to_b2(local_path, b2_filename, content_type):
     with open(local_path, "rb") as f:
         bucket.upload_bytes(f.read(), b2_filename, content_type=content_type)
-    return f"{B2_PUBLIC_URL}/{urllib.parse.quote(b2_filename)}"
+    return b2_filename  # Chỉ trả về tên file trên B2
+
+def get_signed_url(file_name, valid_seconds=3600):
+    """Tạo signed URL tạm thời để tải file từ bucket private"""
+    auth_token = bucket.get_download_authorization(
+        file_name_prefix=file_name,
+        valid_duration_in_seconds=valid_seconds
+    )
+    download_url = f"{b2_api.get_download_url_for_bucket_name(bucket.name)}/{urllib.parse.quote(file_name)}"
+    return f"{download_url}?Authorization={auth_token}"
 
 def transcribe_with_assemblyai(file_path, language_code):
     headers = {"authorization": ASSEMBLYAI_API_KEY}
@@ -112,9 +119,9 @@ def process_file():
         summary = model.generate_content(f"Bạn là chuyên gia về {subject}. Tóm tắt nội dung: {text}").text.strip()
 
         # Upload file gốc
-        safe_file_name = urllib.parse.quote(file.filename)
-        b2_file_name = f"uploads/{safe_file_name}"
-        file_url = upload_to_b2(tmp.name, b2_file_name, content_type)
+        safe_file_name = f"uploads/{file.filename}"
+        upload_to_b2(tmp.name, safe_file_name, content_type)
+        file_url = get_signed_url(safe_file_name)
 
         # Upload JSON kết quả
         result_data = {
@@ -123,9 +130,9 @@ def process_file():
             "full_text": text,
             "file_url": file_url
         }
-        json_name = f"results/{urllib.parse.quote(os.path.splitext(file.filename)[0])}.json"
+        json_name = f"results/{os.path.splitext(file.filename)[0]}.json"
         bucket.upload_bytes(json.dumps(result_data, ensure_ascii=False).encode("utf-8"), json_name, content_type="application/json")
-        json_url = f"{B2_PUBLIC_URL}/{json_name}"
+        json_url = get_signed_url(json_name)
 
         os.remove(tmp.name)
         return jsonify({
