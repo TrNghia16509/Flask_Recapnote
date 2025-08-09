@@ -25,7 +25,7 @@ ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
 ASSEMBLYAI_TRANSCRIBE_URL = "https://api.assemblyai.com/v2/transcript"
 
-# Backblaze B2
+# Backblaze B2 (Private Bucket)
 info = InMemoryAccountInfo()
 b2_api = B2Api(info)
 b2_api.authorize_account("production", os.getenv("B2_APPLICATION_KEY_ID"), os.getenv("B2_APPLICATION_KEY"))
@@ -43,10 +43,10 @@ def extract_text_from_docx(file_path):
 def upload_to_b2(local_path, b2_filename, content_type):
     with open(local_path, "rb") as f:
         bucket.upload_bytes(f.read(), b2_filename, content_type=content_type)
-    return b2_filename  # Chỉ trả về tên file trên B2
+    return b2_filename
 
 def get_signed_url(file_name, valid_seconds=3600):
-    """Tạo signed URL tạm thời để tải file từ bucket private"""
+    """Tạo signed URL tạm thời cho file private"""
     auth_token = bucket.get_download_authorization(
         file_name_prefix=file_name,
         valid_duration_in_seconds=valid_seconds
@@ -57,13 +57,11 @@ def get_signed_url(file_name, valid_seconds=3600):
 def transcribe_with_assemblyai(file_path, language_code):
     headers = {"authorization": ASSEMBLYAI_API_KEY}
 
-    # Upload file
     with open(file_path, "rb") as f:
         upload_res = requests.post(ASSEMBLYAI_UPLOAD_URL, headers=headers, data=f)
     upload_res.raise_for_status()
     audio_url = upload_res.json()["upload_url"]
 
-    # Request transcription
     payload = {
         "audio_url": audio_url,
         "language_code": None if language_code == "auto" else language_code
@@ -72,7 +70,6 @@ def transcribe_with_assemblyai(file_path, language_code):
     trans_res.raise_for_status()
     transcript_id = trans_res.json()["id"]
 
-    # Poll until done
     while True:
         status_res = requests.get(f"{ASSEMBLYAI_TRANSCRIBE_URL}/{transcript_id}", headers=headers)
         status_res.raise_for_status()
@@ -131,7 +128,8 @@ def process_file():
             "file_url": file_url
         }
         json_name = f"results/{os.path.splitext(file.filename)[0]}.json"
-        bucket.upload_bytes(json.dumps(result_data, ensure_ascii=False).encode("utf-8"), json_name, content_type="application/json")
+        bucket.upload_bytes(json.dumps(result_data, ensure_ascii=False).encode("utf-8"),
+                            json_name, content_type="application/json")
         json_url = get_signed_url(json_name)
 
         os.remove(tmp.name)
@@ -142,6 +140,31 @@ def process_file():
             "file_url": file_url,
             "json_url": json_url
         })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# API: Lấy signed URL mới cho file bất kỳ
+@app.route("/get_signed_url", methods=["GET"])
+def api_get_signed_url():
+    file_name = request.args.get("file_name")
+    if not file_name:
+        return jsonify({"error": "Thiếu file_name"}), 400
+    try:
+        return jsonify({"signed_url": get_signed_url(file_name)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# API: Lấy nội dung JSON từ bucket private
+@app.route("/get_json_content", methods=["GET"])
+def get_json_content():
+    file_name = request.args.get("file_name")
+    if not file_name:
+        return jsonify({"error": "Thiếu file_name"}), 400
+    try:
+        signed_url = get_signed_url(file_name)
+        res = requests.get(signed_url)
+        res.raise_for_status()
+        return jsonify(res.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
