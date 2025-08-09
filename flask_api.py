@@ -51,7 +51,9 @@ def get_signed_url(file_name, valid_seconds=3600):
         file_name_prefix=file_name,
         valid_duration_in_seconds=valid_seconds
     )
-    download_url = f"{b2_api.get_download_url_for_bucket_name(bucket.name)}/{urllib.parse.quote(file_name)}"
+    # ✅ Sử dụng account_info.get_download_url() thay vì get_download_url_for_bucket_name
+    base_url = b2_api.account_info.get_download_url()
+    download_url = f"{base_url}/file/{bucket.name}/{urllib.parse.quote(file_name)}"
     return f"{download_url}?Authorization={auth_token}"
 
 def transcribe_with_assemblyai(file_path, language_code):
