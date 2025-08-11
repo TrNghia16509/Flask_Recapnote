@@ -113,9 +113,9 @@ def process_file():
                 return jsonify({"error": "Định dạng không hỗ trợ"}), 400
 
         # AI xử lý
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-3.5-flash")
         subject = model.generate_content(f"Chủ đề chính của nội dung sau là gì? {text}").text.strip()
-        summary = model.generate_content(f"Bạn là chuyên gia về {subject}. Tóm tắt nội dung: {text}").text.strip()
+        summary = model.generate_content(f"Bạn là chuyên gia về {subject}. Tóm tắt nội dung: {text} với những ý chính quan trọng trong 1000 từ").text.strip()
 
         # Upload file gốc
         safe_file_name = f"uploads/{file.filename}"
@@ -172,3 +172,4 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
