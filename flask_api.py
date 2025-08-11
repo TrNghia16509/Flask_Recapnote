@@ -98,7 +98,21 @@ def groq_generate(prompt, max_tokens=1000):
     res = requests.post(url, headers=headers, json=payload)
     res.raise_for_status()
     return res.json()["choices"][0]["message"]["content"].strip()
-
+    
+def split_text(text, max_chars=8000):
+    """Chia văn bản thành các đoạn nhỏ"""
+    paragraphs = text.split("\n")
+    chunks, current_chunk = [], ""
+    for p in paragraphs:
+        if len(current_chunk) + len(p) + 1 > max_chars:
+            chunks.append(current_chunk.strip())
+            current_chunk = p
+        else:
+            current_chunk += "\n" + p
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+    return chunks
+    
 # === Routes ===
 @app.route("/", methods=["GET"])
 def home():
@@ -130,9 +144,27 @@ def process_file():
                 os.remove(tmp.name)
                 return jsonify({"error": "Định dạng không hỗ trợ"}), 400
 
-        # AI xử lý với Groq
-        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau: {text}")
-        summary = groq_generate(f"Tóm tắt nội dung sau một cách ngắn gọn, đủ ý trong 1000 từ:\n\n{text}")
+        # Chia nhỏ văn bản để tóm tắt
+        chunks = split_text(text, max_chars=8000)
+
+        # Tóm tắt từng phần
+        partial_summaries = []
+        for i, chunk in enumerate(chunks, 1):
+            part_sum = groq_generate(
+                f"Tóm tắt phần {i} của văn bản này bằng tiếng Việt trong khoảng 200 từ:\n\n{chunk}",
+                max_tokens=800
+            )
+            partial_summaries.append(part_sum)
+
+        # Gộp các tóm tắt và tạo bản tóm tắt cuối
+        summary_text = "\n".join(partial_summaries)
+        summary = groq_generate(
+            f"Dưới đây là các bản tóm tắt của từng phần:\n{summary_text}\n\n"
+            "Hãy viết một bản tóm tắt chung đầy đủ ý, tối đa 1000 từ, bằng tiếng Việt."
+        )
+
+        # Lấy chủ đề
+        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau: {summary_text}")
 
         # Upload file gốc
         safe_file_name = f"uploads/{file.filename}"
@@ -189,4 +221,5 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
