@@ -18,5 +18,6 @@ soundfile
 boto3
 bcrypt
 b2sdk
+groq
 
 
