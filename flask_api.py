@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 import os, tempfile, json, docx, requests, urllib.parse
 from dotenv import load_dotenv
-import google.generativeai as genai
 from flask_cors import CORS
 import pdfplumber
 from b2sdk.v2 import InMemoryAccountInfo, B2Api
@@ -12,16 +11,16 @@ CORS(app)
 load_dotenv()
 
 # Kiểm tra biến môi trường bắt buộc
-required_env = ["GOOGLE_API_KEY", "ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"]
+required_env = ["GROQ_API_KEY", "ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"]
 for env_var in required_env:
     if not os.getenv(env_var):
         raise RuntimeError(f"❌ Missing environment variable: {env_var}")
 
-# Google Gemini
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# API keys
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 
 # AssemblyAI
-ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
 ASSEMBLYAI_TRANSCRIBE_URL = "https://api.assemblyai.com/v2/transcript"
 
@@ -51,7 +50,6 @@ def get_signed_url(file_name, valid_seconds=3600):
         file_name_prefix=file_name,
         valid_duration_in_seconds=valid_seconds
     )
-    # ✅ Sử dụng account_info.get_download_url() thay vì get_download_url_for_bucket_name
     base_url = b2_api.account_info.get_download_url()
     download_url = f"{base_url}/file/{bucket.name}/{urllib.parse.quote(file_name)}"
     return f"{download_url}?Authorization={auth_token}"
@@ -80,6 +78,25 @@ def transcribe_with_assemblyai(file_path, language_code):
             return status_data["text"]
         elif status_data["status"] == "error":
             raise Exception(f"AssemblyAI Error: {status_data['error']}")
+
+def groq_generate(prompt, max_tokens=1000):
+    """Gọi Groq API"""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama3-70b-8192",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.7
+    }
+    res = requests.post(url, headers=headers, json=payload)
+    res.raise_for_status()
+    return res.json()["choices"][0]["message"]["content"].strip()
 
 # === Routes ===
 @app.route("/", methods=["GET"])
@@ -112,10 +129,9 @@ def process_file():
                 os.remove(tmp.name)
                 return jsonify({"error": "Định dạng không hỗ trợ"}), 400
 
-        # AI xử lý
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        subject = model.generate_content(f"Chủ đề chính của nội dung sau là gì? {text}").text.strip()
-        summary = model.generate_content(f"Bạn là chuyên gia về {subject}. Tóm tắt nội dung: {text} với những ý chính quan trọng trong 1000 từ").text.strip()
+        # AI xử lý với Groq
+        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau: {text}")
+        summary = groq_generate(f"Tóm tắt nội dung sau một cách ngắn gọn, đủ ý trong 1000 từ:\n\n{text}")
 
         # Upload file gốc
         safe_file_name = f"uploads/{file.filename}"
@@ -172,5 +188,3 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
-
