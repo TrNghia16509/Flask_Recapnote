@@ -161,7 +161,7 @@ def process_file():
 
         # Tóm tắt cuối cùng từ các bản tóm tắt nhỏ
         final_summary = groq_generate(
-            "Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc:\n\n"
+            "Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc, bằng Tiếng Việt:\n\n"
             + "\n\n".join(partial_summaries),
             max_tokens=1000
         )
@@ -221,6 +221,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
