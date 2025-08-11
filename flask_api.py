@@ -80,8 +80,8 @@ def transcribe_with_assemblyai(file_path, language_code):
         elif status_data["status"] == "error":
             raise Exception(f"AssemblyAI Error: {status_data['error']}")
 
-def groq_generate(prompt, max_tokens=1000):
-    """Gọi Groq API"""
+def groq_generate(prompt, max_tokens=1000, retries=3):
+    """Gọi Groq API với retry khi bị rate limit"""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -89,29 +89,27 @@ def groq_generate(prompt, max_tokens=1000):
     }
     payload = {
         "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
         "temperature": 0.7
     }
-    res = requests.post(url, headers=headers, json=payload)
-    res.raise_for_status()
-    return res.json()["choices"][0]["message"]["content"].strip()
+
+    for attempt in range(retries):
+        res = requests.post(url, headers=headers, json=payload)
+        if res.status_code == 429:  # Quá giới hạn
+            wait_time = 2 ** attempt
+            print(f"⚠️ Groq rate limit, thử lại sau {wait_time}s...")
+            time.sleep(wait_time)
+            continue
+        res.raise_for_status()
+        return res.json()["choices"][0]["message"]["content"].strip()
+
+    raise Exception("Groq API bị giới hạn quá nhiều lần")
     
-def split_text(text, max_chars=8000):
+def split_text(text, chunk_size=3000):
     """Chia văn bản thành các đoạn nhỏ"""
-    paragraphs = text.split("\n")
-    chunks, current_chunk = [], ""
-    for p in paragraphs:
-        if len(current_chunk) + len(p) + 1 > max_chars:
-            chunks.append(current_chunk.strip())
-            current_chunk = p
-        else:
-            current_chunk += "\n" + p
-    if current_chunk.strip():
-        chunks.append(current_chunk.strip())
-    return chunks
+    words = text.split()
+    return [" ".join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
     
 # === Routes ===
 @app.route("/", methods=["GET"])
@@ -144,27 +142,28 @@ def process_file():
                 os.remove(tmp.name)
                 return jsonify({"error": "Định dạng không hỗ trợ"}), 400
 
-        # Chia nhỏ văn bản để tóm tắt
-        chunks = split_text(text, max_chars=8000)
+        # === Xử lý Groq ===
+        # Chủ đề
+        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau bằng tiếng Việt: {text[:4000]}")
 
-        # Tóm tắt từng phần
+        # Tóm tắt theo từng phần
+        chunks = split_text(text, chunk_size=3000)
         partial_summaries = []
-        for i, chunk in enumerate(chunks, 1):
-            part_sum = groq_generate(
-                f"Tóm tắt phần {i} của văn bản này bằng tiếng Việt trong khoảng 200 từ:\n\n{chunk}",
+        for idx, chunk in enumerate(chunks):
+            print(f"🔹 Tóm tắt đoạn {idx+1}/{len(chunks)}")
+            summary_part = groq_generate(
+                f"Tóm tắt đoạn văn sau bằng tiếng Việt, ngắn gọn, đầy đủ ý:\n\n{chunk}",
                 max_tokens=800
             )
-            partial_summaries.append(part_sum)
+            partial_summaries.append(summary_part)
+            time.sleep(1)  # Giảm tải API
 
-        # Gộp các tóm tắt và tạo bản tóm tắt cuối
-        summary_text = "\n".join(partial_summaries)
-        summary = groq_generate(
-            f"Dưới đây là các bản tóm tắt của từng phần:\n{summary_text}\n\n"
-            "Hãy viết một bản tóm tắt chung đầy đủ ý, tối đa 1000 từ, bằng tiếng Việt."
+        # Tóm tắt cuối cùng từ các bản tóm tắt nhỏ
+        final_summary = groq_generate(
+            "Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc:\n\n"
+            + "\n\n".join(partial_summaries),
+            max_tokens=1000
         )
-
-        # Lấy chủ đề
-        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau: {summary_text}")
 
         # Upload file gốc
         safe_file_name = f"uploads/{file.filename}"
@@ -174,7 +173,7 @@ def process_file():
         # Upload JSON kết quả
         result_data = {
             "subject": subject,
-            "summary": summary,
+            "summary": final_summary,
             "full_text": text,
             "file_url": file_url
         }
@@ -186,7 +185,7 @@ def process_file():
         os.remove(tmp.name)
         return jsonify({
             "subject": subject,
-            "summary": summary,
+            "summary": final_summary,
             "full_text": text,
             "file_url": file_url,
             "json_url": json_url
@@ -221,6 +220,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
