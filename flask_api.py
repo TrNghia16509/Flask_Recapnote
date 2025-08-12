@@ -14,7 +14,7 @@ CORS(app)
 load_dotenv()
 
 # Kiểm tra biến môi trường bắt buộc
-required_env = ["GROQ_API_KEY", "ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"]
+required_env = ["ASSEMBLYAI_API_KEY", "B2_APPLICATION_KEY_ID", "B2_APPLICATION_KEY", "B2_BUCKET_NAME"]
 for env_var in required_env:
     if not os.getenv(env_var):
         raise RuntimeError(f"❌ Missing environment variable: {env_var}")
@@ -23,41 +23,6 @@ for env_var in required_env:
 GROQ_API_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
 if not GROQ_API_KEYS:
     raise RuntimeError("❌ Bị lỗi")
-    
-def groq_generate(prompt, max_tokens=1000, retries=3):
-    """Gọi Groq API lần lượt từng key khi bị rate limit"""
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    payload = {
-        "model": "llama3-70b-8192",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": 0.7
-    }
-
-    # Thử từng key
-    for key_index, api_key in enumerate(GROQ_API_KEYS):
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        for attempt in range(retries):
-            res = requests.post(url, headers=headers, json=payload)
-            if res.status_code == 429:
-                wait_time = 2 ** attempt
-                print(f"⚠️ Thử lại sau {wait_time}s...")
-                time.sleep(wait_time)
-                continue
-            elif res.status_code >= 500:
-                break
-            try:
-                res.raise_for_status()
-                return res.json()["choices"][0]["message"]["content"].strip()
-            except Exception as e:
-                print(f"⚠️ Key #{key_index+1} lỗi: {e}")
-                break  # sang key tiếp theo
-
-    raise Exception("❌ Bị lỗi")
-    
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 
 # AssemblyAI
@@ -143,12 +108,8 @@ def transcribe_with_assemblyai(file_path, language_code):
         time.sleep(3)
 
 def groq_generate(prompt, max_tokens=1000, retries=3):
-    """Gọi Groq API với retry khi bị rate limit"""
+    """Gọi Groq API lần lượt từng key khi bị rate limit"""
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
     payload = {
         "model": "llama3-70b-8192",
         "messages": [{"role": "user", "content": prompt}],
@@ -156,17 +117,29 @@ def groq_generate(prompt, max_tokens=1000, retries=3):
         "temperature": 0.7
     }
 
-    for attempt in range(retries):
-        res = requests.post(url, headers=headers, json=payload)
-        if res.status_code == 429:  # Quá giới hạn
-            wait_time = 2 ** attempt
-            print(f"⚠️ Groq rate limit, thử lại sau {wait_time}s...")
-            time.sleep(wait_time)
-            continue
-        res.raise_for_status()
-        return res.json()["choices"][0]["message"]["content"].strip()
+    # Thử từng key
+    for key_index, api_key in enumerate(S):
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        for attempt in range(retries):
+            res = requests.post(url, headers=headers, json=payload)
+            if res.status_code == 429:
+                wait_time = 2 ** attempt
+                print(f"⚠️ Thử lại sau {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            elif res.status_code >= 500:
+                break
+            try:
+                res.raise_for_status()
+                return res.json()["choices"][0]["message"]["content"].strip()
+            except Exception as e:
+                print(f"⚠️ Key #{key_index+1} lỗi: {e}")
+                break  # sang key tiếp theo
 
-    raise Exception("Groq API bị giới hạn quá nhiều lần")
+    raise Exception("❌ Bị lỗi")
     
 def split_text(text, chunk_size=3000):
     """Chia văn bản thành các đoạn nhỏ"""
@@ -282,6 +255,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
