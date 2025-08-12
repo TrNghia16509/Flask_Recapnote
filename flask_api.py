@@ -6,6 +6,7 @@ import pdfplumber
 from b2sdk.v2 import InMemoryAccountInfo, B2Api
 from groq import Groq
 import time 
+from pydub import AudioSegment
 
 # ============= Config ============
 app = Flask(__name__)
@@ -244,6 +245,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
