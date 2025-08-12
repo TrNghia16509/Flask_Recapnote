@@ -57,29 +57,52 @@ def get_signed_url(file_name, valid_seconds=3600):
     return f"{download_url}?Authorization={auth_token}"
 
 def transcribe_with_assemblyai(file_path, language_code):
-    headers = {"authorization": ASSEMBLYAI_API_KEY}
+    headers = {
+        "authorization": ASSEMBLYAI_API_KEY,
+        "content-type": "application/octet-stream"
+    }
 
-    with open(file_path, "rb") as f:
-        upload_res = requests.post(ASSEMBLYAI_UPLOAD_URL, headers=headers, data=f)
+    # 1. Chuyển file audio sang WAV 16-bit PCM nếu định dạng không chuẩn
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext not in [".wav", ".mp3", ".m4a", ".flac"]:
+        print(f"🔄 Chuyển đổi {ext} → .wav")
+        audio = AudioSegment.from_file(file_path)
+        wav_path = file_path + ".wav"
+        audio.export(wav_path, format="wav")
+        file_path = wav_path
+
+    # 2. Upload theo từng chunk 5MB
+    def read_file_in_chunks(path, chunk_size=5_242_880):
+        with open(path, "rb") as f:
+            while True:
+                data = f.read(chunk_size)
+                if not data:
+                    break
+                yield data
+
+    upload_res = requests.post(ASSEMBLYAI_UPLOAD_URL, headers=headers, data=read_file_in_chunks(file_path))
     upload_res.raise_for_status()
     audio_url = upload_res.json()["upload_url"]
 
+    # 3. Gửi yêu cầu tạo transcript
     payload = {
         "audio_url": audio_url,
         "language_code": None if language_code == "auto" else language_code
     }
-    trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers=headers, json=payload)
+    trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers={"authorization": ASSEMBLYAI_API_KEY}, json=payload)
     trans_res.raise_for_status()
     transcript_id = trans_res.json()["id"]
 
+    # 4. Chờ kết quả
     while True:
-        status_res = requests.get(f"{ASSEMBLYAI_TRANSCRIBE_URL}/{transcript_id}", headers=headers)
+        status_res = requests.get(f"{ASSEMBLYAI_TRANSCRIBE_URL}/{transcript_id}", headers={"authorization": ASSEMBLYAI_API_KEY})
         status_res.raise_for_status()
         status_data = status_res.json()
         if status_data["status"] == "completed":
             return status_data["text"]
         elif status_data["status"] == "error":
             raise Exception(f"AssemblyAI Error: {status_data['error']}")
+        time.sleep(3)
 
 def groq_generate(prompt, max_tokens=1000, retries=3):
     """Gọi Groq API với retry khi bị rate limit"""
@@ -221,6 +244,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
