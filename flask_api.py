@@ -20,7 +20,44 @@ for env_var in required_env:
         raise RuntimeError(f"❌ Missing environment variable: {env_var}")
 
 # API keys
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
+if not GROQ_API_KEYS:
+    raise RuntimeError("❌ Bị lỗi")
+    
+def groq_generate(prompt, max_tokens=1000, retries=3):
+    """Gọi Groq API lần lượt từng key khi bị rate limit"""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    payload = {
+        "model": "llama3-70b-8192",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": 0.7
+    }
+
+    # Thử từng key
+    for key_index, api_key in enumerate(GROQ_API_KEYS):
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        for attempt in range(retries):
+            res = requests.post(url, headers=headers, json=payload)
+            if res.status_code == 429:
+                wait_time = 2 ** attempt
+                print(f"⚠️ Thử lại sau {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            elif res.status_code >= 500:
+                break
+            try:
+                res.raise_for_status()
+                return res.json()["choices"][0]["message"]["content"].strip()
+            except Exception as e:
+                print(f"⚠️ Key #{key_index+1} lỗi: {e}")
+                break  # sang key tiếp theo
+
+    raise Exception("❌ Bị lỗi")
+    
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
 
 # AssemblyAI
@@ -245,6 +282,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
