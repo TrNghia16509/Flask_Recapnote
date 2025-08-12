@@ -118,7 +118,7 @@ def groq_generate(prompt, max_tokens=1000, retries=3):
     }
 
     # Thử từng key
-    for key_index, api_key in enumerate(S):
+    for key_index, api_key in enumerate(GROQ_API_KEYS):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -255,6 +255,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
