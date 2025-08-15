@@ -75,7 +75,7 @@ def transcribe_with_assemblyai(file_path, language_code):
         file_path = wav_path
 
     # 2. Upload theo từng chunk 5MB
-    def read_file_in_chunks(path, chunk_size=6_291_x456):
+    def read_file_in_chunks(path, chunk_size=6_291_456):
         with open(path, "rb") as f:
             while True:
                 data = f.read(chunk_size)
@@ -255,6 +255,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
