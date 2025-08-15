@@ -179,7 +179,7 @@ def process_file():
 
         # === Xử lý Groq ===
         # Chủ đề
-        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau bằng tiếng Việt: {text[:4000]}")
+        subject = groq_generate(f"Hãy cho biết chủ đề chính của nội dung sau bằng {language_code}: {text[:4000]}")
 
         # Tóm tắt theo từng phần
         chunks = split_text(text, chunk_size=3000)
@@ -187,7 +187,7 @@ def process_file():
         for idx, chunk in enumerate(chunks):
             print(f"🔹 Tóm tắt đoạn {idx+1}/{len(chunks)}")
             summary_part = groq_generate(
-                f"Tóm tắt đoạn văn sau bằng tiếng Việt, ngắn gọn, đầy đủ ý:\n\n{chunk}",
+                f"Tóm tắt đoạn văn sau bằng {language_code}, ngắn gọn, đầy đủ ý:\n\n{chunk}",
                 max_tokens=800
             )
             partial_summaries.append(summary_part)
@@ -195,7 +195,7 @@ def process_file():
 
         # Tóm tắt cuối cùng từ các bản tóm tắt nhỏ
         final_summary = groq_generate(
-            "Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc, bằng Tiếng Việt:\n\n"
+            f"Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc, bằng {language_code}:\n\n"
             + "\n\n".join(partial_summaries),
             max_tokens=1000
         )
@@ -255,6 +255,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
