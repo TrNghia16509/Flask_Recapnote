@@ -90,7 +90,7 @@ def transcribe_with_assemblyai(file_path, language_code):
     # 3. Gửi yêu cầu tạo transcript
     payload = {
         "audio_url": audio_url,
-        "language_code": None if language_code == "auto" else language_code
+        "language_code": language_code
     }
     trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers={"authorization": ASSEMBLYAI_API_KEY}, json=payload)
     trans_res.raise_for_status()
@@ -158,7 +158,7 @@ def process_file():
             return jsonify({"error": "Thiếu file"}), 400
 
         file = request.files["file"]
-        language_code = request.form.get("language_code", "auto")
+        language_code = request.form.get("language_code")
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             file.save(tmp.name)
@@ -255,6 +255,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
