@@ -159,6 +159,7 @@ def process_file():
 
         file = request.files["file"]
         language_code = request.form.get("language_code")
+        language_name = request.form.get("language_name")
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             file.save(tmp.name)
@@ -187,7 +188,7 @@ def process_file():
         for idx, chunk in enumerate(chunks):
             print(f"🔹 Tóm tắt đoạn {idx+1}/{len(chunks)}")
             summary_part = groq_generate(
-                f"Tóm tắt đoạn văn sau bằng {language_code}, ngắn gọn, đầy đủ ý:\n\n{chunk}",
+                f"Tóm tắt đoạn văn sau bằng {language_name}, ngắn gọn, đầy đủ ý:\n\n{chunk}",
                 max_tokens=800
             )
             partial_summaries.append(summary_part)
@@ -195,7 +196,7 @@ def process_file():
 
         # Tóm tắt cuối cùng từ các bản tóm tắt nhỏ
         final_summary = groq_generate(
-            f"Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc, bằng {language_code}:\n\n"
+            f"Dưới đây là các bản tóm tắt từng phần. Hãy gộp chúng thành một bản tóm tắt hoàn chỉnh, mạch lạc, bằng {language_name}:\n\n"
             + "\n\n".join(partial_summaries),
             max_tokens=1000
         )
@@ -233,28 +234,29 @@ def process_file():
 def api_get_signed_url():
     file_name = request.args.get("file_name")
     if not file_name:
-        return jsonify({"error": "Thiếu file_name"}), 400
+        return jsonify({"error": "Thiếu"}), 400
     try:
         return jsonify({"signed_url": get_signed_url(file_name)})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Lỗi"}), 500
 
 # API: Lấy nội dung JSON từ bucket private
 @app.route("/get_json_content", methods=["GET"])
 def get_json_content():
     file_name = request.args.get("file_name")
     if not file_name:
-        return jsonify({"error": "Thiếu file_name"}), 400
+        return jsonify({"error": "Thiếu"}), 400
     try:
         signed_url = get_signed_url(file_name)
         res = requests.get(signed_url)
         res.raise_for_status()
         return jsonify(res.json())
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Lỗi"}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
