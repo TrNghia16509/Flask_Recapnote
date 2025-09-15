@@ -12,7 +12,7 @@ import os
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model_id = "vinai/PhoWhisper-base"   # có thể thay bằng PhoWhisper-small/large
+model_id = "vinai/PhoWhisper-medium"   # có thể thay bằng PhoWhisper-small/large
 
 model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id).to(device)
 processor = AutoProcessor.from_pretrained(model_id)
@@ -268,6 +268,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
