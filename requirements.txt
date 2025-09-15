@@ -15,6 +15,7 @@ requests
 authlib
 soundfile
 groq
+transform
 
 
 
