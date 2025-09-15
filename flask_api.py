@@ -95,30 +95,6 @@ def transcribe_with_phowhisper(audio_path: str) -> str:
                     break
                 yield data
 
-    upload_res = requests.post(ASSEMBLYAI_UPLOAD_URL, headers=headers, data=read_file_in_chunks(file_path))
-    upload_res.raise_for_status()
-    audio_url = upload_res.json()["upload_url"]
-
-    # 3. Gửi yêu cầu tạo transcript
-    payload = {
-        "audio_url": audio_url,
-        "language_code": None if language_code == "auto" else language_code
-    }
-    trans_res = requests.post(ASSEMBLYAI_TRANSCRIBE_URL, headers={"authorization": ASSEMBLYAI_API_KEY}, json=payload)
-    trans_res.raise_for_status()
-    transcript_id = trans_res.json()["id"]
-
-    # 4. Chờ kết quả
-    while True:
-        status_res = requests.get(f"{ASSEMBLYAI_TRANSCRIBE_URL}/{transcript_id}", headers={"authorization": ASSEMBLYAI_API_KEY})
-        status_res.raise_for_status()
-        status_data = status_res.json()
-        if status_data["status"] == "completed":
-            return status_data["text"]
-        elif status_data["status"] == "error":
-            raise Exception(f"AssemblyAI Error: {status_data['error']}")
-        time.sleep(3)
-
 def groq_generate(prompt, max_tokens=1000, retries=3):
     """Gọi Groq API lần lượt từng key khi bị rate limit"""
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -265,9 +241,33 @@ def get_json_content():
         return jsonify(res.json())
     except Exception as e:
         return jsonify({"error": "Lỗi"}), 500
+        
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.json
+    question = data.get("question")
+    context = data.get("context", "")
 
+    if not question:
+        return jsonify({"error": "Thiếu câu hỏi"}), 400
+
+    # Tạo prompt dựa trên transcript
+    prompt = f"""
+    Bạn là trợ lý AI.
+    Đây là nội dung transcript/tóm tắt:
+    {context}
+
+    Câu hỏi: {question}
+    Trả lời bằng {language_code}, rõ ràng, súc tích.
+    """
+
+    answer = groq_generate(prompt, max_tokens=800)
+
+    return jsonify({"answer": answer})
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
