@@ -7,6 +7,23 @@ from b2sdk.v2 import InMemoryAccountInfo, B2Api
 from groq import Groq
 import time 
 from pydub import AudioSegment
+import torch
+import os
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model_id = "vinai/PhoWhisper-base"   # có thể thay bằng PhoWhisper-small/large
+
+model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id).to(device)
+processor = AutoProcessor.from_pretrained(model_id)
+
+asr_pipeline = pipeline(
+    "automatic-speech-recognition",
+    model=model,
+    tokenizer=processor.tokenizer,
+    feature_extractor=processor.feature_extractor,
+    device=0 if device == "cuda" else -1,
+)
 
 # ============= Config ============
 app = Flask(__name__)
@@ -22,12 +39,7 @@ for env_var in required_env:
 # API keys
 GROQ_API_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
 if not GROQ_API_KEYS:
-    raise RuntimeError("❌ Bị lỗi")
-ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY")
-
-# AssemblyAI
-ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload"
-ASSEMBLYAI_TRANSCRIBE_URL = "https://api.assemblyai.com/v2/transcript"
+    raise RuntimeError("❌ Bị lỗi)
 
 # Backblaze B2 (Private Bucket)
 info = InMemoryAccountInfo()
@@ -59,11 +71,11 @@ def get_signed_url(file_name, valid_seconds=3600):
     download_url = f"{base_url}/file/{bucket.name}/{urllib.parse.quote(file_name)}"
     return f"{download_url}?Authorization={auth_token}"
 
-def transcribe_with_assemblyai(file_path, language_code):
-    headers = {
-        "authorization": ASSEMBLYAI_API_KEY,
-        "content-type": "application/octet-stream"
-    }
+def transcribe_with_phowhisper(audio_path: str) -> str:
+    """Nhận file audio và trả về transcript tiếng Việt"""
+    result = asr_pipeline(audio_path, generate_kwargs={"language": "auto"})
+    return result["text"]
+
 
     # 1. Chuyển file audio sang WAV 16-bit PCM nếu định dạng không chuẩn
     ext = os.path.splitext(file_path)[1].lower()
@@ -166,7 +178,7 @@ def process_file():
             ext = file.filename.lower()
 
             if ext.endswith((".mp3", ".wav")):
-                text = transcribe_with_assemblyai(tmp.name, language_code)
+                text = transcribe_with_phowhisper(tmp.name, language_code)
                 content_type = "audio/wav"
             elif ext.endswith(".pdf"):
                 text = extract_text_from_pdf(tmp.name)
@@ -256,6 +268,7 @@ def get_json_content():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
 
 
 
